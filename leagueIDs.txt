@@ -1,0 +1,99 @@
+Prem league ID: 8;
+Prem league season ID: 18378;
+England country ID: 462;
+
+
+Austria #143
+Admiral Bundesliga
+181
+
+Belgium #556
+Pro League
+208
+
+UEFA Europa League Play-offs
+1371
+
+Croatia #266
+1. HNL
+244
+
+Denmark #320
+Superliga
+271
+
+Europe #41
+Champions League
+2
+Europa League
+5
+Europa Conference League
+2286
+
+France #17
+Ligue 1
+301
+
+Germany #11
+Bundesliga
+82
+
+Italy #251
+Serie A
+384
+Coppa Italia
+390
+
+Netherlands #38
+Eredivisie
+72
+
+Norway #1578
+Eliteserien
+444
+
+Poland #2
+Ekstraklasa
+453
+
+Portugal #20
+Primeira Liga
+462
+
+Russia #227
+Premier League
+486
+
+Scotland #1161
+Premiership
+501
+
+Spain #32
+La Liga
+564
+Copa Del Rey
+570
+
+Sweden #47
+Allsvenskan
+573
+
+Switzerland #62
+Super League
+591
+
+Turkey #404
+Super Lig
+600
+
+Ukraine #86
+Premier League
+609
+
+United Kingdom #462
+Premier League
+8
+Prem lg season ID: 18378;
+Championship
+9
+FA Cup
