@@ -2,32 +2,38 @@ import fetch from "node-fetch";
 import Twit from "twit";
 import nodeCron from "node-cron";
 import express from "express";
+import mysql from "mysql";
 import moment from "moment";
 import "dotenv/config";
 
 const app = express();
 const port = process.env.PORT || 3000;
-//Your Sportmonks API Key
-const sportmonksAPI = process.env.sportmonksAPI;
+const todaysDate = moment().format("YYYY-MM-DD");
+const myAPI = "SPORT MONKS API KEY";
 //The ID of the specified league you want to use, from sportmonks.com;
 const leagueID = 8;
-const liveScoresEndpoint = `https://soccer.sportmonks.com/api/v2.0/livescores/now?api_token=${sportmonksAPI}&include=events,localTeam,visitorTeam&leagues=${leagueID}`;
+const liveScoresEndpoint = `https://soccer.sportmonks.com/api/v2.0/livescores/now?api_token=${myAPI}&include=events,localTeam,visitorTeam&leagues=${leagueID}`;
 
-// //Used to store data so we can keep track of events that have already happened
+//Used to store data so we can keep track of events that have already happened
 let liveGamesArray = [];
-let eventArray = [];
 let finishedGames = [];
-let eventLogger = [];
 
-//Your keys for Twitter's API
-const T = new Twit({
-  consumer_key: process.env.consumer_key,
-  consumer_secret: process.env.consumer_secret,
-  access_token: process.env.access_token,
-  access_token_secret: process.env.access_token_secret,
+const connection = mysql.createPool({
+  host: "xxxxxx",
+  user: "xxxxxx",
+  password: "xxxxxx",
+  database: "xxxxxx",
 });
 
-//Post a tweet
+//Keys for Twitter's API
+const T = new Twit({
+  consumer_key: "xxxxxx",
+  consumer_secret: "xxxxxx",
+  access_token: "xxxxxx-xxxxxx",
+  access_token_secret: "xxxxxx",
+});
+
+//Posts a tweet
 // T.post(
 //   "statuses/update",
 //   { status: "testing123" },
@@ -36,84 +42,81 @@ const T = new Twit({
 //   }
 // );
 
-//Fetches the match ID's of the live games being played in the specified league;
-async function getData() {
-  const response = await fetch(liveScoresEndpoint);
-  const results = await response.json();
-
-  //Only runs if games are currently being played;
-  if (results.data.length > 0) {
-    //Iterates through the games currently being played;
-    for (let i = 0; i < results.data.length; i++) {
-      const { id } = results.data[i];
-      const { name: home_name } = results.data[i].localTeam.data;
-      const { name: away_name } = results.data[i].visitorTeam.data;
-      const { status } = results.data[i].time;
-      const {
-        localteam_score: homeTeamScore,
-        visitorteam_score: awayTeamScore,
-      } = results.data[i].scores;
-
-      //Adds a match ID to the liveGamesArray if the game isn't finished AND if it isn't already in the array;
-      if (status === "FT" && finishedGames.indexOf(id) === -1) {
-        T.post(
-          "statuses/update",
-          {
-            status: `FINAL
-
-${home_name} | ${homeTeamScore}
-${away_name} | ${awayTeamScore}
-
-#PremierLeague`,
-          },
-          function (err, data, response) {
-            //console.log(data);
-          }
-        );
-        finishedGames.push(id);
-      } else if (liveGamesArray.indexOf(id) === -1 && status === "LIVE") {
-        liveGamesArray.push(id);
-      }
-    }
-  } else {
-    console.log("No games currently being played.");
-  }
-  return liveGamesArray;
-}
-
 //Runs once a day to see whether there are games on the schedule;
-nodeCron.schedule("30 11 * * *", async function () {
+nodeCron.schedule("45 10 * * *", async function () {
   const areThereGamesToday = await fetch(
-    `https://soccer.sportmonks.com/api/v2.0/fixtures/date/${todaysDate}?api_token=${sportmonksAPI}&leagues=${leagueID}`
+    `https://soccer.sportmonks.com/api/v2.0/fixtures/date/${todaysDate}?api_token=${myAPI}&leagues=${leagueID}`
   );
   const response = await areThereGamesToday.json();
+  console.log(`There are ${response.data.length} games today`);
 
-  //If there are games on the schedule, the function runs all day, every other minute;
+  //If there are games on the schedule, the function runs all day, every three minutes;
   if (response.data.length > 0) {
-    nodeCron.schedule("* 12-23 * * *", function () {
-      getData().then((resArr) => {
-        console.log(resArr);
+    nodeCron.schedule("*/3 11-23 * * *", function () {
+      async function getData() {
+        const response = await fetch(liveScoresEndpoint);
+        const results = await response.json();
+
+        //Iterates through the games currently being played;
+        for (let i = 0; i < results.data.length; i++) {
+          const { id } = results.data[i];
+          const { name: home_name } = results.data[i].localTeam.data;
+          const { name: away_name } = results.data[i].visitorTeam.data;
+          const { status } = results.data[i].time;
+          const {
+            localteam_score: homeTeamScore,
+            visitorteam_score: awayTeamScore,
+          } = results.data[i].scores;
+
+          //Adds a match ID to the liveGamesArray if the game isn't finished AND if it isn't already in the array;
+          if (status === "FT" && finishedGames.indexOf(id) === -1) {
+            T.post(
+              "statuses/update",
+              {
+                status: `FINAL
+
+            ${home_name} | ${homeTeamScore}
+            ${away_name} | ${awayTeamScore}
+
+            #PremierLeague`,
+              },
+              function (err, data, response) {
+                //console.log(data);
+              }
+            );
+
+            finishedGames.push(id);
+            const index = liveGamesArray.indexOf(id);
+            if (index > -1) {
+              liveGamesArray.splice(index, 1);
+            }
+          } else if (liveGamesArray.indexOf(id) === -1 && status === "LIVE") {
+            liveGamesArray.push(id);
+          }
+        }
+      }
+
+      getData().then(() => {
         //Only runs if there are games currently being played;
-        if (resArr.length > 0) {
+        if (liveGamesArray.length > 0) {
           //Iterates through each game in the liveGamesArray;
-          for (let i = 0; i < resArr.length; i++) {
-            console.log("Iterating.");
+          for (let i = 0; i < liveGamesArray.length; i++) {
+            console.log(liveGamesArray);
             async function goalChecker() {
               const eventFetch = await fetch(
-                `https://soccer.sportmonks.com/api/v2.0/fixtures/${resArr[i]}?api_token=${sportmonksAPI}&include=localTeam,visitorTeam,events.player`
+                `https://soccer.sportmonks.com/api/v2.0/fixtures/${liveGamesArray[i]}?api_token=${myAPI}&include=localTeam,visitorTeam,events.player`
               );
               const sportsData = await eventFetch.json();
-
-              //Iterates through each event of the currently iterated match ID;
-              for (let i = 0; i < sportsData.data.events.data.length; i++) {
+              //Runs if there has been atleast one event in the match
+              if (sportsData.data.events.data.length > 0) {
                 const {
                   type: eventType,
-                  id: eventID,
                   minute: time,
-                  var_result,
-                  extra_minute,
+                  fixture_id,
                   result,
+                  extra_minute,
                 } = sportsData.data.events.data[i];
+                const { id: event_ID } = sportsData.data.events.data[i];
                 const { display_name: player } =
                   sportsData.data.events.data[i].player.data;
                 const { name: away_name } = sportsData.data.visitorTeam.data;
@@ -127,20 +130,19 @@ nodeCron.schedule("30 11 * * *", async function () {
                   extra_minute == null
                     ? `${time}'`
                     : `${time}' + ${extra_minute}'`;
+                const tweetEventStatus =
+                  eventType == "goal" || eventType == "penalty"
+                    ? "GOAL! ⚽"
+                    : "OWN GOAL! ⚽";
 
-                //If an event type is a goal, and the event isn't in the eventArray already, we tweet it out;
-                if (
-                  (eventArray.indexOf(eventID) === -1 &&
-                    eventType === "goal") ||
-                  eventType === "penalty"
-                ) {
+                function postTweet() {
                   T.post(
                     "statuses/update",
                     {
-                      status: `GOAL! ⚽ 
-    
+                      status: `${tweetEventStatus} 
+
 ${player} | ${newTime}
-      
+
 ${home_name} | ${homeScore}
 ${away_name} | ${awayScore}`,
                     },
@@ -148,55 +150,74 @@ ${away_name} | ${awayScore}`,
                       //console.log(data);
                     }
                   );
-                  eventArray.push(eventID);
-                  eventLogger.push(sportsData.data.events.data);
-                  break;
-                } else if (
-                  eventArray.indexOf(eventID) === -1 &&
+                }
+
+                if (
+                  eventType === "goal" ||
+                  eventType === "penalty" ||
                   eventType === "own-goal"
                 ) {
-                  T.post(
-                    "statuses/update",
-                    {
-                      status: `OWN GOAL! ⚽ 
-    
-${player} | ${newTime}
-      
-${home_name} | ${homeScore}
-${away_name} | ${awayScore}`,
-                    },
-                    function (err, data, response) {
-                      //console.log(data);
+                  //Queries into the DB to see if the current event has already been posted
+                  const eventCheck = `SELECT * FROM events WHERE eventID = ${event_ID} OR matchID = ${fixture_id} AND playerName = '${player}' AND result = '${result}'`;
+                  connection.query(eventCheck, function (err, res) {
+                    if (err) throw err;
+                    if (res.length == 0) {
+                      console.log("No events exist, event was added");
+                      const insertEvent = `INSERT INTO events (eventID, matchID, playerName, result) VALUES (${event_ID}, ${fixture_id}, '${player}', '${result}')`;
+
+                      //Inserts currently iterated event into DB if it doesn't already exist
+                      connection.query(insertEvent, function (err, res) {
+                        if (err) throw err;
+                        console.log(res);
+                      });
+                      postTweet();
+                    } else if (res.length > 0) {
+                      console.log("Event already exists");
                     }
-                  );
-                  eventArray.push(eventID);
-                  eventLogger.push(sportsData.data.events.data);
-                  break;
-                } else if (
-                  eventArray.indexOf(eventID) === -1 &&
-                  eventType === "var" &&
-                  var_result === "Goal Disallowed"
-                ) {
-                  T.post(
-                    "statuses/update",
-                    {
-                      status: `GOAL DISALLOWED | ${newTime}' 
-    
-      
-${home_name} | ${homeScore}
-${away_name} | ${awayScore}`,
-                    },
-                    function (err, data, response) {
-                      //console.log(data);
-                    }
-                  );
-                  eventArray.push(eventID);
-                  eventLogger.push(sportsData.data.events.data);
+                  });
                 }
+                //let eventArray = [];
+
+                // function doesEventExist() {
+                //   if (eventArray.length == 0) {
+                //     return false;
+                //   } else if (eventArray.length > 0) {
+                //     for (let i = 0; i < eventArray.length; i++) {
+                //       if (
+                //         (eventArray[i].matchID == fixture_id &&
+                //           eventArray[i].playerName == player &&
+                //           eventArray[i].result == result) ||
+                //         eventArray[i].eventID == event_ID
+                //       ) {
+                //         return true;
+                //       }
+                //     }
+                //   }
+                // }
+
+                // if (
+                //   eventArray.some(
+                //     (x) =>
+                //       x.eventID == event_ID ||
+                //       (x.matchID == fixture_id &&
+                //         x.playerName == player &&
+                //         x.result == result)
+                //   )
+                // )
+
+                // function pushToEventArr() {
+                //   eventArray.push({
+                //     matchID: fixture_id,
+                //     eventID: event_ID,
+                //     playerName: player,
+                //     result: result,
+                //   });
+                // }
               }
             }
             goalChecker();
           }
+          //console.log(eventArray);
         } else {
           console.log("No live games being played.");
         }
@@ -208,17 +229,14 @@ ${away_name} | ${awayScore}`,
 });
 
 //Scheduled function that empties the arrays once a day;
-nodeCron.schedule("0 23 * * *", function () {
+nodeCron.schedule("0 9 * * *", function () {
   liveGamesArray = [];
-  eventArray = [];
   finishedGames = [];
-  eventLogger = [];
-  console.log("Arrays emptied.");
-});
-
-//Console.logs all of the goal events; used for debugging.
-nodeCron.schedule("50 22 * * *", function () {
-  console.log(eventLogger);
+  connection.query("DELETE FROM events", function (err, res) {
+    if (err) throw err;
+    console.log(res);
+  });
+  console.log("Data emptied.");
 });
 
 app.listen(port, () => {
